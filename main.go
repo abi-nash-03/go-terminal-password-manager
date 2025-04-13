@@ -19,13 +19,10 @@ import (
 func main() {
     initializePasswordFile()
     add_password := flag.Bool("add", false, "Add new password")
-    update_password := flag.Bool("u", false, "Update an existing password")
     delete_key := flag.String("d", "", "Delete a Key")
     flag.Parse()
     if(*add_password) {
         addNewPassword()
-    } else if *update_password {
-        updatePassword()
     } else if *delete_key != "" {
         deleteKey(*delete_key)
     } else {
@@ -46,21 +43,9 @@ func addNewPassword() {
     fmt.Println("Password added successfully :)")
 }
 
-func updatePassword() {
-    fmt.Println("Enter the key name")
-    key := getUserInput()   
-    is_exist := checkKeyExistence(key)
-    if(!is_exist) {
-        fmt.Println("Key not found")
-        return
-    }
-
-    fmt.Println("Found key")
-}
-
 func deleteKey(key string) {
     // open the file
-    file_path := getPasswordFilePath()+"/.user_passwords"
+    file_path := getPasswordFilePath("password")
     password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
     if(err != nil) {
         fmt.Println("Unable to store the file")
@@ -115,48 +100,23 @@ func writeIntoFile(file_path string, string_arr []string) {
     }
 }
 
-func checkKeyExistence(key string) bool {
-    file_path := getPasswordFilePath()+"/.user_passwords"
-    password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
-    if err != nil {
-		fmt.Println("Error opening password file:", err)
-		panic(err)
-	}
-	defer password_file.Close()
-
-    // Read line by line
-	scanner := bufio.NewScanner(password_file)
-    found_key := false
-    for scanner.Scan() {
-        line := scanner.Text()
-        parts := strings.SplitN(line, ":", 2)
-        if len(parts) == 2 {
-            if(key == parts[0]) {
-                found_key = true;
-                break;
-            }
-        }
-
-    }
-
-    if err := scanner.Err(); err != nil {
-        fmt.Printf("Error reading file. \n")
-    } 
-
-    return found_key
-}
-
-func getPasswordFilePath() string {
+func getPasswordFilePath(file_name string) string {
     homeDir, err := os.UserHomeDir()
     if err != nil {
         log.Fatal("Could not get home directory:", err)
     }
-    return filepath.Join(homeDir, ".password_manager")
-
+    file_path := filepath.Join(homeDir, ".password_manager")
+    switch file_name {
+    case "password":
+        file_path = filepath.Join(file_path, ".user_passwords")
+    case "encrypt":
+        file_path = filepath.Join(file_path, ".encrypt")
+    }
+    return file_path
 }
 
 func initializePasswordFile() {
-    passwordFolder := getPasswordFilePath()
+    passwordFolder := getPasswordFilePath("")
 
     if _, err := os.Stat(passwordFolder); os.IsNotExist(err) {
         fmt.Println("First run detected. Setting up password manager...")
@@ -209,7 +169,7 @@ func getUserInput() string {
 func storePassword(key, password string) {
     
     // open the file
-    file_path := getPasswordFilePath()+"/.user_passwords"
+    file_path := getPasswordFilePath("password")
     password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
     if(err != nil) {
         fmt.Println("Unable to store the file")
@@ -256,7 +216,7 @@ func storePassword(key, password string) {
 }
 
 func listPasswords() [] string {
-    file_path := getPasswordFilePath()+"/.user_passwords"
+    file_path := getPasswordFilePath("password")
     password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
     var passwords []string
 
@@ -342,7 +302,7 @@ func encryptText(plaintext string)  (string, error) {
 }
 
 func getPasswordEncryptKey() []string {
-    file_path := getPasswordFilePath()+"/.encrypt"
+    file_path := getPasswordFilePath("encrypt")
     
     encrypt_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600);
     if err != nil {
