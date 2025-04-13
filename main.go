@@ -13,21 +13,77 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
     "encoding/base64"
+    "flag"
 )
 
 func main() {
-	initializePasswordFile()
-    // var key, password string
-	// fmt.Println("Enter the key to store")
-    // key := getUserInput()
-	// fmt.Println("Enter the password")
-	// password := getUserInput()
-	// fmt.Println(key, password)
-    // storePassword(key, password);
-    password_list := listPasswords()
-    fmt.Printf("Enter the number : ")
-    index := getUserInput()
-    copyPasswordToCb(password_list, index)
+    initializePasswordFile()
+    add_password := flag.Bool("add", false, "Add new password")
+    update_password := flag.Bool("u", false, "Update an existing password")
+    flag.Parse()
+    if(*add_password) {
+        addNewPassword()
+    } else if *update_password {
+        updatePassword()
+    } else {
+        password_list := listPasswords()
+        fmt.Printf("Enter the number : ")
+        index := getUserInput()
+        copyPasswordToCb(password_list, index)
+    }
+}
+
+func addNewPassword() {
+    fmt.Println("Enter the key to store")
+    key := getUserInput()
+    fmt.Println("Enter the password")
+    password := getUserInput()
+    fmt.Println(key, password)
+    storePassword(key, password);
+    fmt.Println("Password added successfully :)")
+}
+
+func updatePassword() {
+    fmt.Println("Enter the key name")
+    key := getUserInput()   
+    is_exist := checkKeyExistence(key)
+    if(!is_exist) {
+        fmt.Println("Key not exists")
+        return
+    }
+
+    fmt.Println("Found key")
+}
+
+func checkKeyExistence(key string) bool {
+    file_path := getPasswordFilePath()+"/.user_passwords"
+    password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
+    if err != nil {
+		fmt.Println("Error opening password file:", err)
+		panic(err)
+	}
+	defer password_file.Close()
+
+    // Read line by line
+	scanner := bufio.NewScanner(password_file)
+    found_key := false
+    for scanner.Scan() {
+        line := scanner.Text()
+        parts := strings.SplitN(line, ":", 2)
+        if len(parts) == 2 {
+            if(key == parts[0]) {
+                found_key = true;
+                break;
+            }
+        }
+
+    }
+
+    if err := scanner.Err(); err != nil {
+        fmt.Printf("Error reading file. \n")
+    } 
+
+    return found_key
 }
 
 func getPasswordFilePath() string {
@@ -90,11 +146,11 @@ func getUserInput() string {
 	return input
 }
 
-func storePassword(user_name, password string) {
+func storePassword(key, password string) {
     
     // open the file
     file_path := getPasswordFilePath()+"/.user_passwords"
-    password_file, err := os.OpenFile(file_path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+    password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
     if(err != nil) {
         fmt.Println("Unable to store the file")
         panic(err)
@@ -102,20 +158,60 @@ func storePassword(user_name, password string) {
 
     defer password_file.Close();
 
-    encrypted_password, err := encryptText(password)
-    if(err != nil) {
-        panic(err)
+    encrypted_password, enc_err := encryptText(password)
+    if(enc_err != nil) {
+        panic(enc_err)
     }
-    user_name_password := user_name + ":"+encrypted_password
-    
+
+    // read line
+    lines := [] string{}
+    scanner := bufio.NewScanner(password_file)
+    key_updated := false
+    for scanner.Scan() {
+
+        line := scanner.Text()
+        parts := strings.SplitN(line, ":", 2)
+        if parts[0] == key {
+            key := parts[0]
+            value := encrypted_password
+            new_line := key+":"+value
+            lines = append(lines, new_line)
+            key_updated = true
+            break
+        } else {
+            lines = append(lines, line)
+        }
+    }
+    if !key_updated {
+        new_key_value_store := key+":"+encrypted_password
+        lines = append(lines, new_key_value_store)
+    }
+    fmt.Println("lines to be stored-----------------");
+    fmt.Println(lines);
+
+    if scanner_err := scanner.Err(); err != nil {
+        panic(scanner_err)
+    } 
+
     // store the password
-    _, err = password_file.WriteString(user_name_password+"\n")
-	if err != nil {
-		panic(err)
-	}
+    password_file_w, w_err := os.OpenFile(file_path, os.O_CREATE|os.O_WRONLY, 0600)
+    if(w_err != nil) {
+        fmt.Println("Unable to store the file")
+        panic(w_err)
+    }
+    defer password_file_w.Close();
+
+    output := strings.Join(lines, "\n")
+    writer := bufio.NewWriter(password_file_w)
+    _,write_err := writer.WriteString(output)
+    if write_err != nil {
+        panic(write_err)
+    }
+    writer.Flush()
+    fmt.Println(output) 
 }
 
-func listPasswords() [] string{
+func listPasswords() [] string {
     file_path := getPasswordFilePath()+"/.user_passwords"
     password_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600)
     var passwords []string
@@ -142,7 +238,7 @@ func listPasswords() [] string{
                 panic(err)
             }
             passwords = append(passwords, decrypted_password)
-            fmt.Printf("%d. Key: %s \n", idx, key)
+            fmt.Printf("%d. %s \n", idx, key)
         }
 
     }
@@ -203,6 +299,7 @@ func encryptText(plaintext string)  (string, error) {
 
 func getPasswordEncryptKey() []string {
     file_path := getPasswordFilePath()+"/.encrypt"
+    
     encrypt_file, err := os.OpenFile(file_path, os.O_RDONLY, 0600);
     if err != nil {
 		panic(err)
