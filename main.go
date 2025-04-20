@@ -14,6 +14,7 @@ import (
 	"crypto/cipher"
     "encoding/base64"
     "flag"
+    "github.com/atotto/clipboard"
 )
 
 func main() {
@@ -268,7 +269,10 @@ func copyPasswordToCb(passwords [] string, index string) {
         fmt.Println("index out of range")
         return
     }
-    fmt.Printf("Password copied\n")
+
+    // copy password to clipboard
+    password_to_copy := passwords[int_index]
+    clipboard.WriteAll(password_to_copy)
 }
 
 func encryptText(plaintext string)  (string, error) {
