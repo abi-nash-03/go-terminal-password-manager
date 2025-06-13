@@ -152,8 +152,6 @@ func initializePasswordFile() {
         }
 
         fmt.Println("Password file created at:", passwordFolder)
-    } else {
-        fmt.Println("Password manager already initialized.")
     }
 }
 
